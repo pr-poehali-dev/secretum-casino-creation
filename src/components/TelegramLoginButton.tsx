@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Button } from '@/components/ui/button';
 
 interface TelegramUser {
   id: number;
@@ -18,6 +19,12 @@ interface TelegramLoginButtonProps {
   onAuth: (user: TelegramUser) => void;
 }
 
+declare global {
+  interface Window {
+    onTelegramAuth?: (user: any) => void;
+  }
+}
+
 export default function TelegramLoginButton({
   botName,
   buttonSize = 'large',
@@ -28,13 +35,11 @@ export default function TelegramLoginButton({
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleTelegramAuth = (event: CustomEvent<TelegramUser>) => {
-      onAuth(event.detail);
+    window.onTelegramAuth = (user: any) => {
+      onAuth(user);
     };
 
-    window.addEventListener('telegram-login', handleTelegramAuth as EventListener);
-
-    if (containerRef.current) {
+    if (containerRef.current && window.location.hostname !== 'localhost') {
       const script = document.createElement('script');
       script.src = 'https://telegram.org/js/telegram-widget.js?22';
       script.async = true;
@@ -51,9 +56,38 @@ export default function TelegramLoginButton({
     }
 
     return () => {
-      window.removeEventListener('telegram-login', handleTelegramAuth as EventListener);
+      delete window.onTelegramAuth;
     };
   }, [botName, buttonSize, cornerRadius, requestAccess, onAuth]);
+
+  const handleTestLogin = () => {
+    const testUser: TelegramUser = {
+      id: Math.floor(Math.random() * 1000000),
+      first_name: 'Тестовый',
+      last_name: 'Пользователь',
+      username: 'test_user',
+      photo_url: '',
+      auth_date: Math.floor(Date.now() / 1000),
+      hash: 'test_hash'
+    };
+    onAuth(testUser);
+  };
+
+  if (window.location.hostname === 'localhost' || !botName || botName === 'SecretumCasinoBot') {
+    return (
+      <div className="space-y-4">
+        <Button
+          onClick={handleTestLogin}
+          className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold text-lg py-6"
+        >
+          🚀 Войти (тестовый режим)
+        </Button>
+        <p className="text-xs text-gray-400 text-center">
+          Для настоящего входа через Telegram создайте бота через @BotFather
+        </p>
+      </div>
+    );
+  }
 
   return <div ref={containerRef} className="inline-block" />;
 }
