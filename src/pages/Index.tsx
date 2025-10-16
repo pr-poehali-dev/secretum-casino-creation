@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import Icon from '@/components/ui/icon';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID';
+const GOOGLE_CLIENT_ID = '460452900374-l8pfsb4ahb8l6nlqp3iubjtlf60rmjl9.apps.googleusercontent.com';
 
 const API_URLS = {
   auth: 'https://functions.poehali.dev/ddad3629-93e8-4f23-8e4a-ea5021eef5c7',
