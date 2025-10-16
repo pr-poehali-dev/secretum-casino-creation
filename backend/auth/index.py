@@ -32,23 +32,27 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         action = body.get('action')
         
         if action == 'login':
-            google_id = body.get('google_id')
-            email = body.get('email')
-            name = body.get('name')
+            telegram_id = body.get('telegram_id')
+            username = body.get('username')
+            first_name = body.get('first_name')
+            photo_url = body.get('photo_url', '')
             
-            if not google_id or not email or not name:
+            if not telegram_id:
                 return {
                     'statusCode': 400,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'Missing required fields'})
+                    'body': json.dumps({'error': 'Missing telegram_id'})
                 }
+            
+            name = first_name or username or f'User{telegram_id}'
+            email = f'{telegram_id}@telegram.user'
             
             conn = get_db_connection()
             cur = conn.cursor()
             
             cur.execute(
                 "SELECT id, email, name, balance, is_admin FROM users WHERE google_id = %s",
-                (google_id,)
+                (str(telegram_id),)
             )
             user = cur.fetchone()
             
@@ -63,7 +67,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             else:
                 cur.execute(
                     "INSERT INTO users (google_id, email, name) VALUES (%s, %s, %s) RETURNING id, email, name, balance, is_admin",
-                    (google_id, email, name)
+                    (str(telegram_id), email, name)
                 )
                 new_user = cur.fetchone()
                 conn.commit()

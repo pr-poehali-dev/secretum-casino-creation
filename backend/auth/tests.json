@@ -1,17 +1,17 @@
 {
   "tests": [
     {
-      "name": "Login new user",
+      "name": "Login new user via Telegram",
       "method": "POST",
       "body": {
         "action": "login",
-        "google_id": "test123",
-        "email": "test@example.com",
-        "name": "Test User"
+        "telegram_id": "123456789",
+        "username": "testuser",
+        "first_name": "Test User"
       },
       "expectedStatus": 200,
       "expectedBody": {
-        "email": "test@example.com"
+        "name": "Test User"
       },
       "bodyMatcher": "partial"
     },

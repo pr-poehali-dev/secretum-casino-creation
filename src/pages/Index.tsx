@@ -4,9 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import Icon from '@/components/ui/icon';
-import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
-
-const GOOGLE_CLIENT_ID = '460452900374-l8pfsb4ahb8l6nlqp3iubjtlf60rmjl9.apps.googleusercontent.com';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import TelegramLoginButton from '@/components/TelegramLoginButton';
 
 const API_URLS = {
   auth: 'https://functions.poehali.dev/ddad3629-93e8-4f23-8e4a-ea5021eef5c7',
@@ -27,6 +26,14 @@ interface User {
   email: string;
   balance: number;
   is_admin: boolean;
+}
+
+interface TelegramUser {
+  id: number;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  photo_url?: string;
 }
 
 const CASES: Case[] = [
@@ -55,7 +62,17 @@ const CASES: Case[] = [
   }
 ];
 
-function CasinoApp() {
+declare global {
+  interface Window {
+    Telegram?: {
+      Login: {
+        auth: (options: any, callback: (user: TelegramUser | false) => void) => void;
+      };
+    };
+  }
+}
+
+export default function Index() {
   const [user, setUser] = useState<User | null>(null);
   const [currentPage, setCurrentPage] = useState<'home' | 'cases' | 'profile' | 'deposit' | 'admin'>('home');
   const [promoCode, setPromoCode] = useState('');
@@ -64,55 +81,95 @@ function CasinoApp() {
   const [stats, setStats] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
 
-  const handleGoogleLogin = async (credentialResponse: any) => {
-    const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
-    
-    const response = await fetch(API_URLS.auth, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'login',
-        google_id: decoded.sub,
-        email: decoded.email,
-        name: decoded.name
-      })
-    });
+  useEffect(() => {
+    const savedUser = localStorage.getItem('casino_user');
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        localStorage.removeItem('casino_user');
+      }
+    }
+  }, []);
 
-    if (response.ok) {
+  const handleTelegramLogin = async (telegramUser: TelegramUser) => {
+    try {
+      const response = await fetch(API_URLS.auth, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'login',
+          telegram_id: telegramUser.id,
+          username: telegramUser.username,
+          first_name: telegramUser.first_name,
+          photo_url: telegramUser.photo_url
+        })
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData);
+        localStorage.setItem('casino_user', JSON.stringify(userData));
+        toast.success('Добро пожаловать в SECRETUM!');
+      } else {
+        toast.error('Ошибка входа');
+      }
+    } catch (error) {
+      toast.error('Ошибка сервера');
+    }
+  };
+
+  const updateUserBalance = async () => {
+    if (!user) return;
+    
+    try {
+      const response = await fetch(API_URLS.auth, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'get_user',
+          user_id: user.id
+        })
+      });
+
       const userData = await response.json();
       setUser(userData);
-      toast.success('Добро пожаловать в SECRETUM!');
-    } else {
-      toast.error('Ошибка входа');
+      localStorage.setItem('casino_user', JSON.stringify(userData));
+    } catch (error) {
+      console.error('Failed to update balance');
     }
   };
 
   const handlePromoCode = async () => {
     if (!user) return;
 
-    const response = await fetch(API_URLS.game, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'use_promo',
-        user_id: user.id,
-        promo_code: promoCode
-      })
-    });
+    try {
+      const response = await fetch(API_URLS.game, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'use_promo',
+          user_id: user.id,
+          promo_code: promoCode
+        })
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (response.ok) {
-      setPrizeAnimation({ amount: data.amount, show: true });
-      setUser({ ...user, balance: data.new_balance });
-      
-      setTimeout(() => {
-        setPrizeAnimation({ amount: 0, show: false });
-      }, 2000);
-      
-      setPromoCode('');
-    } else {
-      toast.error(data.error || 'Ошибка активации промокода');
+      if (response.ok) {
+        setPrizeAnimation({ amount: data.amount, show: true });
+        
+        setTimeout(() => {
+          setPrizeAnimation({ amount: 0, show: false });
+        }, 2000);
+        
+        setPromoCode('');
+        await updateUserBalance();
+      } else {
+        toast.error(data.error || 'Ошибка активации промокода');
+      }
+    } catch (error) {
+      toast.error('Ошибка сервера');
     }
   };
 
@@ -126,31 +183,37 @@ function CasinoApp() {
 
     setOpeningCase(caseData.id);
 
-    const response = await fetch(API_URLS.game, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'open_case',
-        user_id: user.id,
-        case_id: caseData.id
-      })
-    });
+    try {
+      const response = await fetch(API_URLS.game, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'open_case',
+          user_id: user.id,
+          case_id: caseData.id
+        })
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (response.ok) {
-      setTimeout(() => {
-        setUser({ ...user, balance: data.new_balance });
-        setPrizeAnimation({ amount: data.won_amount, show: true });
-        setOpeningCase(null);
-
+      if (response.ok) {
         setTimeout(() => {
-          setPrizeAnimation({ amount: 0, show: false });
-        }, 2000);
-      }, 1500);
-    } else {
+          setPrizeAnimation({ amount: data.won_amount, show: true });
+          setOpeningCase(null);
+
+          setTimeout(() => {
+            setPrizeAnimation({ amount: 0, show: false });
+          }, 2000);
+        }, 1500);
+
+        await updateUserBalance();
+      } else {
+        setOpeningCase(null);
+        toast.error(data.error || 'Ошибка открытия кейса');
+      }
+    } catch (error) {
+      toast.error('Ошибка сервера');
       setOpeningCase(null);
-      toast.error(data.error || 'Ошибка открытия кейса');
     }
   };
 
@@ -181,7 +244,7 @@ function CasinoApp() {
     }
   };
 
-  const updateUserBalance = async (targetUserId: number, newBalance: number) => {
+  const updateUserBalanceAdmin = async (targetUserId: number, newBalance: number) => {
     if (!user || !user.is_admin) return;
 
     const response = await fetch(API_URLS.admin, {
@@ -218,15 +281,13 @@ function CasinoApp() {
               SECRETUM
             </h1>
             <p className="text-neon-cyan text-lg">Онлайн казино с кейсами</p>
-            <div className="flex justify-center">
-              <GoogleLogin
-                onSuccess={handleGoogleLogin}
-                onError={() => toast.error('Ошибка входа через Google')}
-                theme="filled_black"
-                size="large"
-                text="continue_with"
-              />
-            </div>
+            <TelegramLoginButton
+              botName="SecretumCasinoBot"
+              buttonSize="large"
+              cornerRadius={8}
+              requestAccess={true}
+              onAuth={handleTelegramLogin}
+            />
           </div>
         </Card>
       </div>
@@ -284,7 +345,7 @@ function CasinoApp() {
               <Button
                 variant={currentPage === 'admin' ? 'default' : 'outline'}
                 onClick={() => setCurrentPage('admin')}
-                className={currentPage === 'admin' ? 'bg-neon-purple text-white neon-box' : 'border-neon-cyan text-neon-cyan'}
+                className={currentPage === 'admin' ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white neon-box' : 'border-red-500 text-red-500'}
               >
                 <Icon name="Shield" className="mr-2" size={18} />
                 Админ
@@ -393,8 +454,8 @@ function CasinoApp() {
                   Баланс: {user.balance.toFixed(0)} ₽
                 </div>
                 {user.is_admin && (
-                  <div className="text-xl text-neon-cyan mt-4">
-                    ⭐ Администратор
+                  <div className="text-xl text-red-500 font-bold mt-4">
+                    👑 Администратор
                   </div>
                 )}
               </div>
@@ -444,79 +505,87 @@ function CasinoApp() {
         )}
 
         {currentPage === 'admin' && user.is_admin && (
-          <div className="space-y-8">
-            <h2 className="text-4xl font-bold text-neon-cyan neon-text text-center">Панель администратора</h2>
-            
+          <div className="space-y-6">
+            <h2 className="text-4xl font-bold text-center bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent neon-text">
+              Панель администратора
+            </h2>
+
             {stats && (
               <div className="grid md:grid-cols-4 gap-4">
-                <Card className="p-6 bg-black/50 border-neon-purple neon-box">
+                <Card className="p-6 bg-black/50 border-red-500 neon-box">
                   <div className="text-center">
                     <div className="text-4xl mb-2">👥</div>
                     <div className="text-3xl font-bold text-neon-cyan">{stats.total_users}</div>
                     <div className="text-white">Пользователей</div>
                   </div>
                 </Card>
-                <Card className="p-6 bg-black/50 border-neon-purple neon-box">
+                <Card className="p-6 bg-black/50 border-red-500 neon-box">
                   <div className="text-center">
                     <div className="text-4xl mb-2">💰</div>
                     <div className="text-3xl font-bold text-neon-cyan">{stats.total_balance.toFixed(0)} ₽</div>
                     <div className="text-white">Общий баланс</div>
                   </div>
                 </Card>
-                <Card className="p-6 bg-black/50 border-neon-purple neon-box">
+                <Card className="p-6 bg-black/50 border-red-500 neon-box">
                   <div className="text-center">
                     <div className="text-4xl mb-2">📦</div>
                     <div className="text-3xl font-bold text-neon-cyan">{stats.total_cases_opened}</div>
-                    <div className="text-white">Кейсов открыто</div>
+                    <div className="text-white">Открыто кейсов</div>
                   </div>
                 </Card>
-                <Card className="p-6 bg-black/50 border-neon-purple neon-box">
+                <Card className="p-6 bg-black/50 border-red-500 neon-box">
                   <div className="text-center">
                     <div className="text-4xl mb-2">🎁</div>
                     <div className="text-3xl font-bold text-neon-cyan">{stats.total_winnings.toFixed(0)} ₽</div>
-                    <div className="text-white">Выигрышей</div>
+                    <div className="text-white">Выиграно</div>
                   </div>
                 </Card>
               </div>
             )}
 
-            <Card className="p-6 bg-black/50 border-neon-cyan neon-box">
-              <h3 className="text-2xl font-bold text-neon-purple mb-4 neon-text">Пользователи</h3>
-              <div className="space-y-4 max-h-96 overflow-y-auto">
-                {users.map((u) => (
-                  <div key={u.id} className="flex items-center justify-between p-4 bg-black/30 rounded border border-neon-purple">
-                    <div>
-                      <div className="text-white font-bold">{u.name}</div>
-                      <div className="text-neon-cyan text-sm">{u.email}</div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-neon-purple font-bold">{u.balance.toFixed(0)} ₽</div>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          const newBalance = prompt('Новый баланс:', u.balance);
-                          if (newBalance) updateUserBalance(u.id, parseFloat(newBalance));
-                        }}
-                        className="bg-neon-cyan text-black"
-                      >
-                        Изменить
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+            <Card className="p-6 bg-black/50 border-red-500 neon-box">
+              <h3 className="text-2xl font-bold text-neon-purple mb-4">Все пользователи</h3>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-neon-purple">
+                      <TableHead className="text-neon-cyan">ID</TableHead>
+                      <TableHead className="text-neon-cyan">Email</TableHead>
+                      <TableHead className="text-neon-cyan">Имя</TableHead>
+                      <TableHead className="text-neon-cyan">Баланс</TableHead>
+                      <TableHead className="text-neon-cyan">Админ</TableHead>
+                      <TableHead className="text-neon-cyan">Действия</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((u) => (
+                      <TableRow key={u.id} className="border-neon-purple/30">
+                        <TableCell className="text-white">{u.id}</TableCell>
+                        <TableCell className="text-white">{u.email}</TableCell>
+                        <TableCell className="text-white">{u.name}</TableCell>
+                        <TableCell className="text-neon-cyan font-bold">{u.balance.toFixed(0)} ₽</TableCell>
+                        <TableCell>{u.is_admin ? '👑' : '—'}</TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              const newBalance = prompt('Новый баланс:', u.balance);
+                              if (newBalance) updateUserBalanceAdmin(u.id, parseFloat(newBalance));
+                            }}
+                            className="bg-neon-cyan text-black"
+                          >
+                            Изменить
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             </Card>
           </div>
         )}
       </div>
     </div>
-  );
-}
-
-export default function Index() {
-  return (
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <CasinoApp />
-    </GoogleOAuthProvider>
   );
 }
