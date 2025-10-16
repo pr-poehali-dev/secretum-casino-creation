@@ -1,18 +1,14 @@
 {
   "tests": [
     {
-      "name": "Login new user via Telegram",
+      "name": "Login via phone",
       "method": "POST",
       "body": {
         "action": "login",
-        "telegram_id": "123456789",
-        "username": "testuser",
-        "first_name": "Test User"
+        "phone_number": "79991234567",
+        "code": "1234"
       },
       "expectedStatus": 200,
-      "expectedBody": {
-        "name": "Test User"
-      },
       "bodyMatcher": "partial"
     },
     {

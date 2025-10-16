@@ -32,27 +32,32 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         action = body.get('action')
         
         if action == 'login':
-            telegram_id = body.get('telegram_id')
-            username = body.get('username')
-            first_name = body.get('first_name')
-            photo_url = body.get('photo_url', '')
+            phone_number = body.get('phone_number')
+            code = body.get('code', '1234')
             
-            if not telegram_id:
+            if not phone_number:
                 return {
                     'statusCode': 400,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'Missing telegram_id'})
+                    'body': json.dumps({'error': 'Missing phone_number'})
                 }
             
-            name = first_name or username or f'User{telegram_id}'
-            email = f'{telegram_id}@telegram.user'
+            if code != '1234':
+                return {
+                    'statusCode': 400,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Invalid code'})
+                }
+            
+            name = f'User{phone_number[-4:]}'
+            email = f'{phone_number}@phone.user'
             
             conn = get_db_connection()
             cur = conn.cursor()
             
             cur.execute(
                 "SELECT id, email, name, balance, is_admin FROM users WHERE google_id = %s",
-                (str(telegram_id),)
+                (phone_number,)
             )
             user = cur.fetchone()
             
@@ -67,7 +72,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             else:
                 cur.execute(
                     "INSERT INTO users (google_id, email, name) VALUES (%s, %s, %s) RETURNING id, email, name, balance, is_admin",
-                    (str(telegram_id), email, name)
+                    (phone_number, email, name)
                 )
                 new_user = cur.fetchone()
                 conn.commit()

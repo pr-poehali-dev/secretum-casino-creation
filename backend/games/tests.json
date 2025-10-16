@@ -1,0 +1,16 @@
+{
+  "tests": [
+    {
+      "name": "Play coinflip",
+      "method": "POST",
+      "body": {
+        "action": "coinflip",
+        "user_id": 1,
+        "amount": 35,
+        "choice": "heads"
+      },
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    }
+  ]
+}
