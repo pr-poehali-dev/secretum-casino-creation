@@ -1,0 +1,26 @@
+{
+  "tests": [
+    {
+      "name": "Use promo code",
+      "method": "POST",
+      "body": {
+        "action": "use_promo",
+        "user_id": 1,
+        "promo_code": "exe"
+      },
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Open case",
+      "method": "POST",
+      "body": {
+        "action": "open_case",
+        "user_id": 1,
+        "case_id": "bomj"
+      },
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    }
+  ]
+}

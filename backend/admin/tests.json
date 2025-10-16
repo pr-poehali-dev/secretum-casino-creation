@@ -1,0 +1,24 @@
+{
+  "tests": [
+    {
+      "name": "Get admin statistics",
+      "method": "POST",
+      "body": {
+        "action": "get_stats",
+        "user_id": 1
+      },
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get all users",
+      "method": "POST",
+      "body": {
+        "action": "get_users",
+        "user_id": 1
+      },
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    }
+  ]
+}

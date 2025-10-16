@@ -1,0 +1,29 @@
+{
+  "tests": [
+    {
+      "name": "Login new user",
+      "method": "POST",
+      "body": {
+        "action": "login",
+        "google_id": "test123",
+        "email": "test@example.com",
+        "name": "Test User"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "email": "test@example.com"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get user by ID",
+      "method": "POST",
+      "body": {
+        "action": "get_user",
+        "user_id": 1
+      },
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    }
+  ]
+}
